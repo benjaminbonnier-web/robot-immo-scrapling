@@ -27,9 +27,11 @@ class BienIciSpider(Spider):
     def start_requests(self):
         for code_url, nom_categorie in self.categories.items():
             url = f"https://www.bienici.com/recherche/achat/salon-de-provence-13300,lancon-provence-13680/{code_url}?page=1"
-            yield Request(url, sid="stealth", callback=self.parse_liste, cb_kwargs={"nom_cat": nom_categorie, "code_url": code_url, "page_num": 1})
+            # CORRECTION : On utilise self.parse au lieu de self.parse_liste
+            yield Request(url, sid="stealth", callback=self.parse, cb_kwargs={"nom_cat": nom_categorie, "code_url": code_url, "page_num": 1})
 
-    async def parse_liste(self, response: Response, nom_cat: str, code_url: str, page_num: int):
+    # CORRECTION : Cette méthode DOIT s'appeler "parse"
+    async def parse(self, response: Response, nom_cat: str, code_url: str, page_num: int):
         self.logger.info(f"=== {nom_cat.upper()} (Page {page_num}) ===")
         
         annonces = response.css('article')
@@ -81,7 +83,8 @@ class BienIciSpider(Spider):
         # --- PAGE SUIVANTE ---
         if page_num < self.max_pages:
             next_url = f"https://www.bienici.com/recherche/achat/salon-de-provence-13300,lancon-provence-13680/{code_url}?page={page_num+1}"
-            yield Request(next_url, sid="stealth", callback=self.parse_liste, cb_kwargs={"nom_cat": nom_cat, "code_url": code_url, "page_num": page_num+1})
+            # CORRECTION : On utilise self.parse ici aussi
+            yield Request(next_url, sid="stealth", callback=self.parse, cb_kwargs={"nom_cat": nom_cat, "code_url": code_url, "page_num": page_num+1})
 
     async def parse_detail(self, response: Response, base: dict):
         texte_detail = " ".join(response.css('body *::text').getall())
@@ -120,9 +123,12 @@ if __name__ == "__main__":
     print(f"*** Lancement Scrapling en mode {spider.mode.upper()} ***")
     
     result = spider.start()
-    result.items.to_csv("resultats.csv")
-    print(f"Scraping terminé. {len(result.items)} biens enregistrés.")
     
+    # Export CSV géré nativement par Scrapling
+    result.items.to_csv("resultats.csv")
+    print(f"Scraping terminé. {len(result.items)} biens enregistrés dans resultats.csv.")
+    
+    # Reconstruction du HTML à partir des données en mémoire
     cartes_html = ""
     for item in result.items:
         nom_categorie = item.get("Catégorie", "Inconnu")
