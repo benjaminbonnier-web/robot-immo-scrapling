@@ -1,0 +1,67 @@
+name: Mon Robot Scrapling
+
+on:
+  schedule:
+    # S'exécute tous les jours à 8h00 du matin (heure UTC)
+    - cron: '0 8 * * *'
+  # Menu de lancement manuel
+  workflow_dispatch:
+    inputs:
+      mode_execution:
+        description: 'Mode de lancement (dev = 1 page, prod = complet)'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prod
+
+permissions:
+  contents: write
+
+jobs:
+  scraper:
+    runs-on: ubuntu-latest
+    
+    env:
+      SCRAPING_MODE: ${{ github.event.inputs.mode_execution || 'prod' }}
+      
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Installation de Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      # NOUVEAU : Installation spécifique à Scrapling
+      - name: Installation de Scrapling et du navigateur
+        run: |
+          pip install -r requirements.txt
+          scrapling install
+
+      - name: Exécution du script Python
+        run: python scraper.py
+
+      - name: Sauvegarder les données
+        run: |
+          git config user.name "Mon Bot"
+          git config user.email "bot@example.com"
+          git add resultats.csv resultats.html
+          git commit -m "Mise à jour des données de scraping" || exit 0
+          git push
+
+      - name: Envoyer le CSV et HTML par email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: 🏠 Nouveaux résultats immobiliers Bien'ici
+          to: benouse13@gmail.com
+          from: GitHub Actions
+          body: Bonjour ! Le robot Scrapling a terminé son balayage en mode ${{ env.SCRAPING_MODE }}. Fichiers en pièces jointes.
+          attachments: resultats.csv,resultats.html
